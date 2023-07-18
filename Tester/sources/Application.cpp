@@ -2,6 +2,8 @@
 #include <exception>
 #include <iostream>
 #include <string>
+#include <fstream>
+#include <algorithm>
 
 namespace {
     cl::Platform get_platform() {
@@ -28,10 +30,24 @@ namespace {
     }
 
     const char* vecAddKernelSRC = R"(
+    float4 mult(__constant float* mat, float4 vec)
+    {
+        float dot0 = dot(vload4(0, mat), vec);
+        float dot1 = dot(vload4(1, mat), vec);
+        float dot2 = dot(vload4(2, mat), vec);
+        float dot3 = dot(vload4(3, mat), vec);
 
-    __kernel void vector_add(__global int* A, __global int* B, __global int* C) {
+        return (float4)(dot0, dot1, dot2, dot3);
+    }
+
+    __kernel void vector_add(__constant float* B, __global float* C) {
+        float4 pos = (float4)(2.0f, 7.0f, 1.0f, 4.0f);
+        float4 result = mult(B, pos);
 	    int i = get_global_id(0);
-	    C[i] = A[i] + B[i];
+	    C[0] = result.r;
+        C[1] = result.g;
+        C[2] = result.b;
+        C[3] = result.a;
     }
 
     )";
@@ -57,13 +73,20 @@ namespace Tester {
     
     }
     void Application::test() {
-        constexpr int N = 3;
-        constexpr int M = 3;
+        constexpr int N = 4;
+        constexpr int M = 4;
 
-        cl::vector<cl_int> A_vec(N * M), B_vec(N * M), C_vec(N * M);
+        cl::vector<cl_float> A_vec(N * M), B_vec(N * M), C_vec(N * M);
+        
+        cl_float16 mat = {
+            2, 6, 0, 0,
+            0, 2, 5, 0,
+            1, 2, 6, 4,
+            0, 0, 0, -5
+        };
 
-        std::fill(A_vec.begin(), A_vec.end(), 3);
-        std::fill(B_vec.begin(), B_vec.end(), 6);
+        std::fill(A_vec.begin(), A_vec.end(), 3.f);
+        memcpy(B_vec.data(), &mat, sizeof(cl_float16));
 
         for (auto el : A_vec) std::cout << el << " ";
         std::cout << std::endl;
@@ -81,14 +104,14 @@ namespace Tester {
 
         cl::Program program = compileProgram(vecAddKernelSRC);
 
-        using vecAdd = cl::KernelFunctor<cl::Buffer, cl::Buffer, cl::Buffer>;
+        using vecAdd = cl::KernelFunctor<cl::Buffer, cl::Buffer>;
         vecAdd add_vecs(program, "vector_add");
 
         cl::NDRange GlobalRange(A_vec.size());
         cl::NDRange LocalRange(1);
         cl::EnqueueArgs Args(m_queue, GlobalRange, LocalRange);
 
-        cl::Event evt = add_vecs(Args, A, B, C);
+        cl::Event evt = add_vecs(Args, B, C);
 
         evt.wait();
 
@@ -96,12 +119,35 @@ namespace Tester {
         
         for (auto el : C_vec) std::cout << el << " "; //should be 9
         std::cout << std::endl;
+
+        auto GPUTimeStart = evt.getProfilingInfo<CL_PROFILING_COMMAND_START>(); // in ns
+        auto GPUTimeFin = evt.getProfilingInfo<CL_PROFILING_COMMAND_END>();
+        auto GDur = (GPUTimeFin - GPUTimeStart) / 1000;  // ns -> µs
+        std::cout << "GPU pure time measured: " << GDur << " Microseconds" << std::endl;
+    }
+
+    void Application::loadDataFromDisk() {
+        //TO DO - check filling buffers from disk!
+        // m_vetexBuffer; m_indexBuffer; m_MVP; m_screenBuffer;
+        std::ifstream vertexFile("Vertices.bin", std::ios::binary);
+        std::ifstream indexFile("Indices.bin", std::ios::binary);
+        std::ifstream MVPFile("MVP.bin", std::ios::binary);
+        std::ifstream ScreenMatrixFile("ScreenMatrix.bin", std::ios::binary);
+
+        std::copy(std::istream_iterator<float>(vertexFile), std::istream_iterator<float>(),
+                  std::back_inserter(m_vetexBuffer));
+        std::copy(std::istream_iterator<uint32_t>(indexFile), std::istream_iterator<uint32_t>(),
+                  std::back_inserter(m_indexBuffer));
+        std::copy(std::istream_iterator<float>(MVPFile), std::istream_iterator<float>(),
+                  std::back_inserter(m_MVP));
+        std::copy(std::istream_iterator<float>(ScreenMatrixFile), std::istream_iterator<float>(),
+                  std::back_inserter(m_screenBuffer));
     }
 
     cl::Program Application::compileProgram(std::string_view kernel) { 
         cl::Program program(m_context, kernel.data());
         try {
-            cl_int buildErr = program.build();
+            program.build("-Werror"); // see https://man.opencl.org/clBuildProgram.html
         } catch (const std::exception& e) {
             std::stringstream ss;
             ss << "\ncompileProgram(..) error: \n";
@@ -110,8 +156,9 @@ namespace Tester {
             auto buildInfo = program.getBuildInfo<CL_PROGRAM_BUILD_LOG>();
             for (auto& [device, error] : buildInfo) {
                 ss << "Program build log for device \"" << device.getInfo<CL_DEVICE_NAME>()
-                   << "\"\nwith compiler arguments: " << program.getBuildInfo<CL_PROGRAM_BUILD_OPTIONS>(device)
-                   << std::endl
+                   << "\"\nwith compiler arguments: \""
+                   << program.getBuildInfo<CL_PROGRAM_BUILD_OPTIONS>(device)
+                   << "\"\nKernal: " << program.getInfo<CL_PROGRAM_SOURCE>() << std::endl
                    << "Compilation error: \n"
                    << error << std::endl;
             }
