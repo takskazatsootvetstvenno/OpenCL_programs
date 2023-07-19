@@ -10,7 +10,7 @@ int main()
 {
     try {
         start();
-    } catch (const std::exception& e) { std::cerr << e.what(); }
+    } catch (const std::exception& e) { std::cerr << "[Error] " << e.what() << std::endl; }
 
     system("pause");
 	return 0;

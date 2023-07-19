@@ -134,14 +134,19 @@ namespace Tester {
         std::ifstream MVPFile("MVP.bin", std::ios::binary);
         std::ifstream ScreenMatrixFile("ScreenMatrix.bin", std::ios::binary);
 
+        if (!vertexFile.is_open()) throw std::runtime_error("Can't open Vertices.bin");
+        if (!indexFile.is_open()) throw std::runtime_error("Can't open Indices.bin");
+        if (!MVPFile.is_open()) throw std::runtime_error("Can't open MVP.bin");
+        if (!ScreenMatrixFile.is_open()) throw std::runtime_error("Can't open ScreenMatrix.bin");
+        
         std::copy(std::istream_iterator<float>(vertexFile), std::istream_iterator<float>(),
                   std::back_inserter(m_vetexBuffer));
         std::copy(std::istream_iterator<uint32_t>(indexFile), std::istream_iterator<uint32_t>(),
                   std::back_inserter(m_indexBuffer));
         std::copy(std::istream_iterator<float>(MVPFile), std::istream_iterator<float>(),
-                  std::back_inserter(m_MVP));
+                  m_MVP.begin());
         std::copy(std::istream_iterator<float>(ScreenMatrixFile), std::istream_iterator<float>(),
-                  std::back_inserter(m_screenBuffer));
+                  m_screenBuffer.begin());
     }
 
     cl::Program Application::compileProgram(std::string_view kernel) { 
