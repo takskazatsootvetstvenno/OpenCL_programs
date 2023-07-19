@@ -9,11 +9,10 @@ namespace Tester {
     class Application {
     public:
         Application();
-        void test();
+        void loadDataFromDisk(std::string_view folderWithBinaries);
+        void testVertexShader();
 
     private:
-
-        void loadDataFromDisk();
 
         cl::Program compileProgram(std::string_view kernal);
 
@@ -22,9 +21,13 @@ namespace Tester {
         cl::CommandQueue m_queue;
 
         //Input blobs
-        std::vector<float> m_vetexBuffer;
+        std::vector<float> m_vertexBuffer;
         std::vector<uint32_t> m_indexBuffer;
-        std::array<float, 16> m_MVP;
-        std::array<float, 16> m_screenBuffer;
+        std::array<float, 16> m_MVP{};
+        std::array<float, 16> m_screenBuffer{};
+
+        //Blob for comparation
+        std::vector<float> m_VStoFSBuffer;
+        std::vector<float> m_VStoFSBuffer_from_gpu;
     };
 }  // namespace Tester
