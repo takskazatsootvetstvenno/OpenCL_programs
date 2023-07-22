@@ -35,39 +35,58 @@ namespace {
         return cl::QueueProperties::Profiling | cl::QueueProperties::OutOfOrder;
     }
 
-    void compareBlobs(
+    void compareBlobsAfterVS(
         const std::vector<float> goldResult,
         const std::vector<float> measureResult,
         const int max_size = INT_MAX) 
     {
         if (goldResult.size() != measureResult.size()) 
             throw std::runtime_error("compareBlobs: Blobs should have equal sizes!");
-        std::cout << std::string(34, '-');
-        std::cout << "\n    Golden | Measured | data type" << std::endl;
-        std::cout << std::string(34, '-');
+        std::stringstream ss;
         bool isDiff = false;
-        for (size_t i = 0; i < goldResult.size() && i < max_size; ++i) { 
-            if (goldResult[i] - measureResult[i] > std::numeric_limits<float>::epsilon()) { 
-                isDiff = true; 
-            }
-            if (i % 6 == 0) std::cout << std::endl;
-            std::cout << std::setw(10) << std::setprecision(5) << goldResult[i] << " | " << std::setw(8)
-                      << std::setprecision(5) << measureResult[i] << " |";
-            if (i % 6 == 0) std::cout << " Vertex #" << i / 6;
-            if (i % 6 == 3) std::cout << " Normal";
+        for (size_t i = 0; i < goldResult.size(); ++i) {
+            if (goldResult[i] - measureResult[i] > std::numeric_limits<float>::epsilon()) { isDiff = true; }
+        }
+        if (isDiff) {
+            ss << std::string(34, '-');
+            ss << "\n    Golden | Measured | data type" << std::endl;
+            ss << std::string(34, '-');
 
-            std::cout << std::endl;
-            
+            for (size_t i = 0; i < goldResult.size() && i < max_size; ++i) {
+                if (i % 6 == 0) ss << std::endl;
+                ss << std::setw(10) << std::setprecision(5) << goldResult[i] << " | " << std::setw(8)
+                   << std::setprecision(5) << measureResult[i] << " |";
+                if (i % 6 == 0) ss << " Vertex #" << i / 6;
+                if (i % 6 == 3) ss << " Normal";
+                ss << std::endl;
+            }
+            ss << std::string(34, '-') << std::endl;
+            ss << "Vertex shader test: DIFF" << std::endl;
+            ss << "Blobs are NOT equal!" << std::endl;
+            ss << std::string(34, '-');
         }
-        std::cout << std::string(34, '-');
-        std::cout << std::endl;
-        if (isDiff)
-        { 
-            std::cout << "Warning! Blobs does not equal!!!" << std::endl;
-            std::cout << std::string(34, '-');
+        else {
+            ss << std::string(34, '-') << std::endl;
+            ss << "Vertex shader test: PASS" << std::endl;
+            ss << std::string(34, '-');
         }
+        std::cout << ss.str();
     }
     
+     std::pair<std::ifstream, uint32_t> getFile(const std::filesystem::path path) {
+        std::ifstream file(path, std::ios::binary);
+        if (!file.is_open()) throw std::runtime_error("Can't open file: " + path.string());
+        uint32_t sizeofFile = std::filesystem::file_size(path);
+        return {std::move(file), sizeofFile};
+     }
+
+     template<typename T>
+     void fillBufferFromFile(std::ifstream& ifs, std::vector<T>& buffer, const uint32_t size)
+     {
+        using buffer_type = std::remove_reference_t<decltype(buffer)>::value_type;
+        buffer.resize(size / sizeof(buffer_type));
+        ifs.read(reinterpret_cast<char*>(buffer.data()), size);
+     }
 }
 
 namespace Tester {
@@ -93,42 +112,26 @@ namespace Tester {
     void Application::loadDataFromDisk(std::string_view folderWithBinaries) {
         std::cout << "Folder: \"" << folderWithBinaries << "\"" << std::endl;
         std::filesystem::path folder(folderWithBinaries);
-        auto verticesPath = folder / "Vertices.bin";
-        auto indicesPath = folder / "Indices.bin";
-        auto MVPPath = folder / "MVP.bin";
-        auto ScreenMatrixPath = folder / "ScreenMatrix.bin";
-        auto VStoFSPath = folder / "VStoFSBuffer.bin";
 
-        std::ifstream vertexFile(verticesPath, std::ios::binary);
-        std::ifstream indexFile(indicesPath, std::ios::binary);
-        std::ifstream MVPFile(MVPPath, std::ios::binary);
-        std::ifstream ScreenMatrixFile(ScreenMatrixPath, std::ios::binary);
-        std::ifstream VStoFSFile(VStoFSPath, std::ios::binary);
+        auto [vertexFile, vertices_size] =           getFile(folder / "Vertices.bin");
+        auto [indexFile, indices_size] =             getFile(folder / "Indices.bin");
+        auto [MVPFile, MVP_size] =                   getFile(folder / "MVP.bin");
+        auto [screenMatrixFile, screenMatrix_size] = getFile(folder / "ScreenMatrix.bin");
+        auto [VStoFSFile, VStoFS_size] =             getFile(folder / "VStoFSBuffer.bin");
+        auto [screenBufferFile, screenBuffer_size] = getFile(folder / "ResultScreenBuffer.bin");
 
-        if (!vertexFile.is_open()) throw std::runtime_error("Can't open Vertices.bin");
-        if (!indexFile.is_open()) throw std::runtime_error("Can't open Indices.bin");
-        if (!MVPFile.is_open()) throw std::runtime_error("Can't open MVP.bin");
-        if (!ScreenMatrixFile.is_open()) throw std::runtime_error("Can't open ScreenMatrix.bin");
-        if (!VStoFSFile.is_open()) throw std::runtime_error("Can't open VStoFSBuffer.bin");
+        if (MVP_size != sizeof(float) * 16) 
+            throw std::runtime_error("Wrong MVP file size! Size: " + MVP_size);
+        if (screenMatrix_size != sizeof(float) * 16)
+            throw std::runtime_error("Wrong ScreenMatrix file size! Size: " + MVP_size);
 
-        auto vertices_size = std::filesystem::file_size(verticesPath);
-        auto indices_size = std::filesystem::file_size(indicesPath);
-        auto MVP_size = std::filesystem::file_size(MVPPath);
-        auto ScreenMatrix_size = std::filesystem::file_size(ScreenMatrixPath);
-        auto VStoFS_size = std::filesystem::file_size(VStoFSPath);
-
-        if (MVP_size != sizeof(float) * 16) throw std::runtime_error("Wrong MVP file size! Size: " + MVP_size);
-        if (ScreenMatrix_size != sizeof(float) * 16) throw std::runtime_error("Wrong ScreenMatrix file size! Size: " + MVP_size);
-
-        m_vertexBuffer.resize(vertices_size / sizeof(float));
-        vertexFile.read(reinterpret_cast<char*>(m_vertexBuffer.data()), vertices_size);
-        m_indexBuffer.resize(indices_size / sizeof(uint32_t));
-        indexFile.read(reinterpret_cast<char*>(m_indexBuffer.data()), indices_size);
-        m_VStoFSBuffer.resize(VStoFS_size / sizeof(float));
-        VStoFSFile.read(reinterpret_cast<char*>(m_VStoFSBuffer.data()), VStoFS_size);
+        fillBufferFromFile(vertexFile, m_vertexBuffer, vertices_size);
+        fillBufferFromFile(indexFile, m_indexBuffer, indices_size);
+        fillBufferFromFile(VStoFSFile, m_VStoFSBuffer, VStoFS_size);
+        fillBufferFromFile(screenBufferFile, m_resultScreenBuffer, screenBuffer_size);
 
         MVPFile.read(reinterpret_cast<char*>(m_MVP.data()), sizeof(float) * 16);
-        ScreenMatrixFile.read(reinterpret_cast<char*>(m_screenBuffer.data()), sizeof(float) * 16);
+        screenMatrixFile.read(reinterpret_cast<char*>(m_screen.data()), sizeof(float) * 16);
     }
 
     void Application::testVertexShader() {
@@ -146,7 +149,7 @@ namespace Tester {
         cl::copy(m_queue, m_vertexBuffer.data(), m_vertexBuffer.data() + m_vertexBuffer.size(), vertex);
         cl::copy(m_queue, m_indexBuffer.data(), m_indexBuffer.data() + m_indexBuffer.size(), index);
         cl::copy(m_queue, m_MVP.data(), m_MVP.data() + m_MVP.size(), MVP);
-        cl::copy(m_queue, m_screenBuffer.data(), m_screenBuffer.data() + m_screenBuffer.size(), Screen);
+        cl::copy(m_queue, m_screen.data(), m_screen.data() + m_screen.size(), Screen);
 
         cl::Program program = compileProgram(vertexShaderKernal);
 
@@ -169,8 +172,7 @@ namespace Tester {
         auto GDur = (GPUTimeFin - GPUTimeStart) / 1000;  // ns -> µs
         std::cout << "GPU pure time measured: " << GDur << " Microseconds" << std::endl;
 
-        compareBlobs(m_VStoFSBuffer, m_VStoFSBuffer_from_gpu, 36);
-        for (auto el : m_VStoFSBuffer_from_gpu) std::cout << el << " ";
+        compareBlobsAfterVS(m_VStoFSBuffer, m_VStoFSBuffer_from_gpu, 36);
         std::cout << std::endl;
     }
 
