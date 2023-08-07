@@ -144,7 +144,7 @@ std::optional<size_t> TableResults::findFirstMismatch(unsigned int dataSize) con
                          firstWrongIndex = i;
                      }
                 } else {
-                     static const auto value = std::get<std::vector<int64_t>>(m_columns_data[0])[i];
+                     const auto value = std::get<std::vector<int64_t>>(m_columns_data[0])[i];
                      if (value - col[i] != 0) { firstWrongIndex = i; }
                 }
                 },
