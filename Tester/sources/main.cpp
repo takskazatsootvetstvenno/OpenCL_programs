@@ -5,6 +5,7 @@ static void start(const char* pathToFolder) {
     Tester::Application app;
     app.loadDataFromDisk(pathToFolder);
     app.testVertexShader();
+    app.testFragmentShader();
 }
 
 struct ParsedArguments {

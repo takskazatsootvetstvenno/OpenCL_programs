@@ -10,7 +10,7 @@
     }
 
     __kernel void vertex_shader(
-    __constant float* position,
+    __constant float* vertex_in,
     __constant uint* index,
     __constant float* MVP,
     __constant float* screen,
@@ -18,8 +18,8 @@
     {
 	    const int i = get_global_id(0);
         const uint vertex_id = index[i];
-        const float3 vertex = vload3(vertex_id * 2, position);
-        const float3 normal = vload3(vertex_id * 2 + 1, position);
+        const float3 vertex = vload3(vertex_id * 2, vertex_in);
+        const float3 normal = vload3(vertex_id * 2 + 1, vertex_in);
         const float4 point = (float4)(vertex, 1.0);
 
         float4 pos = mult(MVP, point);
@@ -28,6 +28,7 @@
         
         pos =  mult(screen, pos); 
         vstore3(pos.xyz, i * 2, output);
+        //vstore3(vertex, i * 2, output);
         vstore3(normal, i * 2 + 1, output);
     }
 )"

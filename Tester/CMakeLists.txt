@@ -2,11 +2,14 @@ cmake_minimum_required(VERSION 3.18)
    
 set(TESTER_INCLUDES
 	includes/Application.hpp
+	includes/TableResults.hpp
 	includes/VertexShader.cl
+	includes/FragmentShader.cl
 )
 
 set(TESTER_SOURCES
 	sources/Application.cpp
+	sources/TableResults.cpp
 	sources/main.cpp
 )
 add_executable(${PROJECT_NAME}

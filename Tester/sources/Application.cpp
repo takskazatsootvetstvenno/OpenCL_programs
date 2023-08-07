@@ -3,14 +3,16 @@
 #include <iostream>
 #include <string>
 #include <fstream>
-#include <algorithm>
-#include <sstream>
 #include <filesystem>
-#include <iomanip>
+#include "TableResults.hpp"
 
 const char* vertexShaderKernal =
 #include "VertexShader.cl"
     ;
+const char* fragmentShaderKernal =
+#include "FragmentShader.cl"
+    ;
+
 namespace {
     cl::Platform get_platform() {
         std::vector<cl::Platform> platforms;
@@ -35,78 +37,55 @@ namespace {
         return cl::QueueProperties::Profiling | cl::QueueProperties::OutOfOrder;
     }
 
-    void compareBlobsAfterVS(
-        const std::vector<float> goldResult,
-        const std::vector<float> measureResult,
-        const int max_size = INT_MAX) 
-    {
-        if (goldResult.size() != measureResult.size()) 
-            throw std::runtime_error("compareBlobs: Blobs should have equal sizes!");
-        std::stringstream ss;
-        bool isDiff = false;
-        for (size_t i = 0; i < goldResult.size(); ++i) {
-            if (goldResult[i] - measureResult[i] > std::numeric_limits<float>::epsilon()) { isDiff = true; }
-        }
-        if (isDiff) {
-            ss << std::string(34, '-');
-            ss << "\n    Golden | Measured | data type" << std::endl;
-            ss << std::string(34, '-');
-
-            for (size_t i = 0; i < goldResult.size() && i < max_size; ++i) {
-                if (i % 6 == 0) ss << std::endl;
-                ss << std::setw(10) << std::setprecision(5) << goldResult[i] << " | " << std::setw(8)
-                   << std::setprecision(5) << measureResult[i] << " |";
-                if (i % 6 == 0) ss << " Vertex #" << i / 6;
-                if (i % 6 == 3) ss << " Normal";
-                ss << std::endl;
-            }
-            ss << std::string(34, '-') << std::endl;
-            ss << "Vertex shader test: DIFF" << std::endl;
-            ss << "Blobs are NOT equal!" << std::endl;
-            ss << std::string(34, '-');
-        }
-        else {
-            ss << std::string(34, '-') << std::endl;
-            ss << "Vertex shader test: PASS" << std::endl;
-            ss << std::string(34, '-');
-        }
-        std::cout << ss.str();
-    }
-    
-     std::pair<std::ifstream, uint32_t> getFile(const std::filesystem::path path) {
+    std::pair<std::ifstream, uint32_t> getFile(const std::filesystem::path path) {
         std::ifstream file(path, std::ios::binary);
         if (!file.is_open()) throw std::runtime_error("Can't open file: " + path.string());
         uint32_t sizeofFile = std::filesystem::file_size(path);
         return {std::move(file), sizeofFile};
-     }
+    }
 
-     template<typename T>
-     void fillBufferFromFile(std::ifstream& ifs, std::vector<T>& buffer, const uint32_t size)
-     {
+    template<typename T>
+    void fillBufferFromFile(std::ifstream& ifs, std::vector<T>& buffer, const uint32_t size)
+    {
         using buffer_type = std::remove_reference_t<decltype(buffer)>::value_type;
         buffer.resize(size / sizeof(buffer_type));
         ifs.read(reinterpret_cast<char*>(buffer.data()), size);
-     }
-}
+    }
+    std::vector<float> getExpectedVertex(const std::vector<float>& vertex, const std::vector<uint32_t>& indices) {
+        std::vector<float> result;
+        for (const auto i : indices) {
+            result.emplace_back(vertex.at(6 * i));
+            result.emplace_back(vertex.at(6 * i + 1));
+            result.emplace_back(vertex.at(6 * i + 2));
+
+            result.emplace_back(vertex.at(6 * i + 3));
+            result.emplace_back(vertex.at(6 * i + 4));
+            result.emplace_back(vertex.at(6 * i + 5));
+        }
+        return result;
+    }
+    }
 
 namespace Tester {
-    Application::Application()
-        : 
+    Application::Application() : 
         m_platform(get_platform()),
         m_context(get_context(m_platform())),
         m_queue(m_context, getQueueProperties()) {
 
-        auto name = m_platform.getInfo<CL_PLATFORM_NAME>();
-        auto profile = m_platform.getInfo<CL_PLATFORM_PROFILE>();
-        auto version = m_platform.getInfo<CL_PLATFORM_VERSION>();
-        auto vendor = m_platform.getInfo<CL_PLATFORM_VENDOR>();
-
+        const auto name = m_platform.getInfo<CL_PLATFORM_NAME>();
+        const auto profile = m_platform.getInfo<CL_PLATFORM_PROFILE>();
+        const auto version = m_platform.getInfo<CL_PLATFORM_VERSION>();
+        const auto vendor = m_platform.getInfo<CL_PLATFORM_VENDOR>();
+        const auto extentions = m_platform.getInfo<CL_PLATFORM_EXTENSIONS_WITH_VERSION>();
+        
         std::cout << "Selected platform: " << name
             << "\nVersion: " << version
             << ", Profile: " << profile
             << "\nVendor:  " << vendor
             << std::endl << std::endl;
-    
+
+        for (const auto& ext : extentions) 
+            if (std::string(ext.name) == "cl_khr_fp16") std::cout << "Supported fp16 extention" << std::endl;
     }
 
     void Application::loadDataFromDisk(std::string_view folderWithBinaries) {
@@ -135,7 +114,8 @@ namespace Tester {
     }
 
     void Application::testVertexShader() {
-        if (m_vertexBuffer.empty() || m_VStoFSBuffer.empty()) throw std::runtime_error("Load data from disk is required before tests!");
+        if (m_vertexBuffer.empty() || m_VStoFSBuffer.empty())
+            throw std::runtime_error("Vertex shader test: Load data from disk is required before tests!");
 
         m_VStoFSBuffer_from_gpu.resize(m_VStoFSBuffer.size());
         std::fill(m_VStoFSBuffer_from_gpu.begin(), m_VStoFSBuffer_from_gpu.end(), 0.f);
@@ -170,12 +150,60 @@ namespace Tester {
         auto GPUTimeStart = evt.getProfilingInfo<CL_PROFILING_COMMAND_START>();  // in ns
         auto GPUTimeFin = evt.getProfilingInfo<CL_PROFILING_COMMAND_END>();
         auto GDur = (GPUTimeFin - GPUTimeStart) / 1000;  // ns -> µs
-        std::cout << "GPU pure time measured: " << GDur << " Microseconds" << std::endl;
+        std::cout << "System GPU: Vertex shader pure time measured: " << GDur << " Microseconds" << std::endl;
 
-        compareBlobsAfterVS(m_VStoFSBuffer, m_VStoFSBuffer_from_gpu, 36);
+        TableResults table("Vertex shader", 14, 6, 16);
+        table.addDataColumn("SoftRender", m_VStoFSBuffer);
+        table.addDataColumn("System GPU", m_VStoFSBuffer_from_gpu);
+        table.addAdditionalInfoColumn("Input Vertex", getExpectedVertex(m_vertexBuffer, m_indexBuffer));
+        table.addAdditionalInfoColumn("Input Index", m_indexBuffer);
+        table.processAndShow();
+
         std::cout << std::endl;
     }
 
+    void Application::testFragmentShader() {
+        if (m_VStoFSBuffer.empty() || m_resultScreenBuffer.empty())
+            throw std::runtime_error("Fragment shader test: Load data from disk is required before tests!");
+        if (m_resultScreenBuffer.size() != 480 * 320)
+            throw std::runtime_error("Fragment shader test: Wrong global size!");
+
+        m_resultScreenBuffer_from_gpu.resize(m_resultScreenBuffer.size());
+        std::fill(m_resultScreenBuffer_from_gpu.begin(), m_resultScreenBuffer_from_gpu.end(), 0);
+
+        cl::Buffer VStoFSBuffer(m_context, CL_MEM_READ_ONLY, m_VStoFSBuffer_from_gpu.size() * sizeof(float));
+        cl::Buffer output(m_context, CL_MEM_WRITE_ONLY, m_resultScreenBuffer_from_gpu.size() * sizeof(float));
+
+        cl::copy(m_queue, m_VStoFSBuffer.data(), m_VStoFSBuffer.data() + m_VStoFSBuffer.size(), VStoFSBuffer);
+
+        cl::Program program = compileProgram(fragmentShaderKernal);
+
+        using vecAdd = cl::KernelFunctor<cl::Buffer, cl::Buffer>;
+        vecAdd add_vecs(program, "fragment_shader");
+
+        cl::NDRange GlobalRange(480 * 320);
+        cl::NDRange LocalRange(1);
+        cl::EnqueueArgs Args(m_queue, GlobalRange, LocalRange);
+
+        cl::Event evt = add_vecs(Args, VStoFSBuffer, output);
+
+        evt.wait();
+
+        cl::copy(m_queue, output, m_resultScreenBuffer_from_gpu.data(),
+                 m_resultScreenBuffer_from_gpu.data() + m_resultScreenBuffer_from_gpu.size());
+
+        auto GPUTimeStart = evt.getProfilingInfo<CL_PROFILING_COMMAND_START>();  // in ns
+        auto GPUTimeFin = evt.getProfilingInfo<CL_PROFILING_COMMAND_END>();
+        auto GDur = (GPUTimeFin - GPUTimeStart) / 1000;  // ns -> µs
+        std::cout << " System GPU: Fragment shader pure time measured: " << GDur << " Microseconds" << std::endl;
+
+        TableResults table("Fragment shader", 14, 10, 10);
+        table.addDataColumn("SoftRender", m_resultScreenBuffer);
+        table.addDataColumn("System GPU", m_resultScreenBuffer_from_gpu);
+        table.processAndShow();
+
+        std::cout << std::endl;
+    }
 
     cl::Program Application::compileProgram(std::string_view kernel) { 
         cl::Program program(m_context, kernel.data());

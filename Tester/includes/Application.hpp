@@ -7,11 +7,14 @@
 #include <vector>
 
 namespace Tester {
+
 class Application {
  public:
     Application();
     void loadDataFromDisk(std::string_view folderWithBinaries);
     void testVertexShader();
+
+    void testFragmentShader();
 
  private:
     cl::Program compileProgram(std::string_view kernal);
