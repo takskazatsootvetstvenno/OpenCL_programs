@@ -28,7 +28,6 @@
         
         pos =  mult(screen, pos); 
         vstore3(pos.xyz, i * 2, output);
-        //vstore3(vertex, i * 2, output);
         vstore3(normal, i * 2 + 1, output);
     }
 )"

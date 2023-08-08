@@ -155,6 +155,11 @@ namespace Tester {
         TableResults table("Vertex shader", 14, 6, 16);
         table.addDataColumn("SoftRender", m_VStoFSBuffer);
         table.addDataColumn("System GPU", m_VStoFSBuffer_from_gpu);
+        {
+            auto vec = std::vector<int>(m_VStoFSBuffer_from_gpu.size());
+            std::fill(vec.begin(), vec.end(), 15);
+            table.addDataColumn("vec", vec);
+        }
         table.addAdditionalInfoColumn("Input Vertex", getExpectedVertex(m_vertexBuffer, m_indexBuffer));
         table.addAdditionalInfoColumn("Input Index", m_indexBuffer);
         table.processAndShow();

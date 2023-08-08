@@ -1,6 +1,5 @@
 #include <iostream>
 #include <exception>
-#include <string>
 #include <format>
 #include <algorithm>
 
@@ -8,7 +7,7 @@
   
 namespace {
 template<typename T>
-void changeVectorType(std::vector<Tester::TableResults::Variant_types_vec>& columns) {
+void changeVectorsType(std::vector<Tester::TableResults::Variant_types_vec>& columns) {
     for (auto& col : columns) {
         std::vector<T> new_vec;
         std::visit([&new_vec](const auto& arg) { std::copy(arg.cbegin(), arg.cend(), std::back_inserter(new_vec)); },
@@ -24,7 +23,7 @@ void TableResults::drawNextData(const std::vector<Variant_types_vec>& data, cons
     for (const auto& column : data) {
         m_ss << "|";
         std::visit([this, i](const auto& col) {
-                using type_info = std::remove_reference_t<decltype(col)>::value_type;
+                using type_info = std::decay_t<decltype(col)>::value_type;
                 if constexpr (std::is_floating_point_v<type_info>) {
                     m_ss << std::format("{:^{}.4f}", col[i], m_cell_width);
                 } else {
@@ -35,10 +34,7 @@ void TableResults::drawNextData(const std::vector<Variant_types_vec>& data, cons
     }
 }
 
-void TableResults::show(const size_t data_size) const {
-    std::optional<size_t> firstWrongIndex;
-    firstWrongIndex = findFirstMismatch(data_size);
-
+void TableResults::show(const size_t data_size, std::optional<size_t> firstWrongIndex) const {
     const unsigned int indexSpaceWidth = std::max(static_cast<int>(std::floor(log10(data_size))) + 1, 4);
     const unsigned int line_size = m_cell_width * m_columns_names.size() + indexSpaceWidth + m_columns_names.size();
 
@@ -72,10 +68,13 @@ void TableResults::show(const size_t data_size) const {
         drawSkipLine(indexSpaceWidth);
     }
 
-
     for (size_t i = firstWrongIndex.value_or(0); i < data_size && i < max_size; ++i) {
         m_ss << std::format("|{:^{}}", i, indexSpaceWidth);
-        drawNextData(m_columns_data, i);
+        if (!m_columns_data_unconverted.empty()) {
+            drawNextData(m_columns_data_unconverted, i);
+        } else {
+            drawNextData(m_columns_data, i);
+        }
         drawNextData(m_info_columns_data, i);
         if (m_info_columns_data.empty()) {
             m_ss << "|";
@@ -106,30 +105,41 @@ TableResults::TableResults(std::string table_name, unsigned int cell_width, unsi
 
 void TableResults::processAndShow() {
     if (m_columns_data.empty()) { throw std::runtime_error("Table.processAndShow(): Empty m_columns_data"); }
-    m_ss.clear();
+    reset();
 
-    const size_t data_size = std::visit([](const auto& vec) { return vec.size(); }, m_columns_data[0]);
+    const size_t data_size = std::visit([](const auto& vec) { return vec.size(); }, m_columns_data.front());
     if (!std::all_of(m_columns_data.cbegin(), m_columns_data.cend(),
         [data_size](const auto& col) { return std::visit([](const auto& vec) { return vec.size(); }, col) == data_size; })) {
             throw std::runtime_error("Table.show(): Vectors should have equal sizes!");
         }
-    const bool is_float_present = std::any_of(m_columns_data.begin(), m_columns_data.end(), [](const auto& col) {
+    const bool all_types_are_equal = std::all_of(
+        m_columns_data.cbegin(), m_columns_data.cend(),
+        [&](const auto& col) { return col.index() == (m_columns_data.front()).index(); });
+
+    if (all_types_are_equal) {
+        show(data_size, findFirstMismatch(data_size));
+        return;
+    }
+
+    m_columns_data_unconverted = m_columns_data;
+
+    const bool is_float_present = std::any_of(m_columns_data.cbegin(), m_columns_data.cend(), [](const auto& col) {
         return std::visit(
             [](const auto& arg) {
-                using T = std::remove_reference_t<decltype(arg)>::value_type;
+                using T = std::decay_t<decltype(arg)>::value_type;
                 return std::is_floating_point_v<T>;
             },
             col);
     });
 
     if (is_float_present) {   
-        changeVectorType<double>(m_columns_data);
+        changeVectorsType<double>(m_columns_data);
         std::cout << "\n* Table: all data types are converted to double! *\n";
     } else {
-        changeVectorType<int64_t>(m_columns_data);
+        changeVectorsType<int64_t>(m_columns_data);
         std::cout << "\n* Table: all data types are converted to int64! *\n";
     }
-    show(data_size);
+    show(data_size, findFirstMismatch(data_size));
 }
 
 std::optional<size_t> TableResults::findFirstMismatch(unsigned int dataSize) const {   
@@ -137,14 +147,14 @@ std::optional<size_t> TableResults::findFirstMismatch(unsigned int dataSize) con
     for (size_t i = 0; i < dataSize && firstWrongIndex.has_value() == false; ++i) {
         for (const auto& column : m_columns_data) {
             std::visit([this, &firstWrongIndex, i](const auto& col) {
-                using T = std::remove_reference_t<decltype(col)>::value_type;
+                using T = std::decay_t<decltype(col)>::value_type;
                 if constexpr (std::is_floating_point_v<T>) {
-                     const auto value = std::get<std::vector<double>>(m_columns_data[0])[i];
-                     if (std::fabs(value - col[i]) > std::numeric_limits<float>::epsilon()) {
+                     const auto value = std::get<std::vector<T>>(m_columns_data[0])[i];
+                     if (std::fabs(value - col[i]) > std::numeric_limits<T>::epsilon()) {
                          firstWrongIndex = i;
                      }
                 } else {
-                     const auto value = std::get<std::vector<int64_t>>(m_columns_data[0])[i];
+                     const auto value = std::get<std::vector<T>>(m_columns_data[0])[i];
                      if (value - col[i] != 0) { firstWrongIndex = i; }
                 }
                 },
@@ -177,4 +187,16 @@ void TableResults::drawTextLine(std::string&& str, unsigned int lineSize) const 
     m_ss << std::format("|{:^{}}|\n", std::move(str), lineSize);
 }
 
+void TableResults::clear() {
+    m_columns_names.clear();
+    m_info_columns_names.clear();
+    m_columns_data.clear();
+    m_info_columns_data.clear();
+    reset();
+}
+
+void TableResults::reset() {
+    m_ss.clear(); 
+    m_columns_data_unconverted.clear();
+}
 }
