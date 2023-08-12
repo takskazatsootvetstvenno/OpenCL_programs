@@ -7,6 +7,16 @@
 
 namespace Tester {
 
+struct TestStatistic {
+    struct Difference {
+        float match_percent = 0;
+        size_t mismatch_count = 0;
+        std::string diff_hash;
+    };
+
+    std::vector<Difference> diffs;
+    std::optional<size_t> first_wrong_index;
+};
 
 class TableResults final {
  public:
@@ -36,12 +46,15 @@ class TableResults final {
  private:
 
     std::optional<size_t> findFirstMismatch(unsigned int dataSize) const;
-    void show(const size_t data_size, std::optional<size_t> firstWrongIndex) const;
+    void show(const size_t data_size, TestStatistic&& stats) const;
     void drawRowLine(unsigned int indexSpaceWidth) const;
     void drawSkipLine(unsigned int indexSpaceWidth) const;
     void drawLine(unsigned int indexSpaceWidth) const;
     void drawTextLine(std::string&& str, unsigned int lineSize) const;
+    void drawTextLineLeft(std::string&& str, unsigned int lineSize) const;
     void drawNextData(const std::vector<Variant_types_vec>& data, const size_t i) const;
+    TestStatistic getStatistics(size_t size);
+    std::string getHash(size_t index);
     void reset();
     std::vector<std::string> m_columns_names;
     std::vector<std::string> m_info_columns_names;

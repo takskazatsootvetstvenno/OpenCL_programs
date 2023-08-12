@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.18)
 set(TESTER_INCLUDES
 	includes/Application.hpp
 	includes/TableResults.hpp
+	includes/hashpp.h
 	includes/VertexShader.cl
 	includes/FragmentShader.cl
 )

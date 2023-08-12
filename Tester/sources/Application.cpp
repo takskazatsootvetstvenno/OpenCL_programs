@@ -64,6 +64,14 @@ namespace {
         }
         return result;
     }
+    std::vector<uint32_t> getExpectedIndex(const std::vector<uint32_t>& index) {
+        std::vector<uint32_t> result;
+        for (const auto i : index) {
+            for (int j = 0; j<6; ++j)
+            result.emplace_back(i);
+        }
+        return result;
+    }
     }
 
 namespace Tester {
@@ -161,7 +169,7 @@ namespace Tester {
             table.addDataColumn("vec", vec);
         }
         table.addAdditionalInfoColumn("Input Vertex", getExpectedVertex(m_vertexBuffer, m_indexBuffer));
-        table.addAdditionalInfoColumn("Input Index", m_indexBuffer);
+        table.addAdditionalInfoColumn("Input Index", getExpectedIndex(m_indexBuffer));
         table.processAndShow();
 
         std::cout << std::endl;
