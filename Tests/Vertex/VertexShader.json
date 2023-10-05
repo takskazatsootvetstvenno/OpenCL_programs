@@ -1,0 +1,23 @@
+{
+  "Inputs": [
+    {
+      "Vertices.bin": "float32"
+    },
+    {
+      "Indices.bin": "uint32"
+    },
+    {
+      "MVP.bin": "float32"
+    },
+    {
+      "ScreenMatrix.bin": "float32"
+    }
+  ],
+  "Outputs": [
+    {
+      "SoftRender": {
+        "VStoFSBuffer.bin": "float32"
+      }
+    }
+  ]
+}

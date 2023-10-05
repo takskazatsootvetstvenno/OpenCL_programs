@@ -1,0 +1,19 @@
+{
+  "Inputs": [
+    {
+      "in.bin": "uint32"
+    }
+  ],
+  "Outputs": [
+    {
+      "Generated": {
+        "out.bin": "uint32"
+      }
+    },
+    {
+      "Wrong_generated": {
+        "out_wrong.bin": "uint32"
+      }
+    }
+  ]
+}

@@ -12,6 +12,7 @@ option(BUILD_DOCS OFF)
 option(BUILD_EXAMPLES OFF)
 option(BUILD_TESTING OFF)
 add_subdirectory(Tester)
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
 
 if(MSVC)
 	 set_property( DIRECTORY PROPERTY VS_STARTUP_PROJECT ${PROJECT_NAME})

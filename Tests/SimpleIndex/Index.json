@@ -1,0 +1,11 @@
+{
+  "Inputs": [
+  ],
+  "Outputs": [
+    {
+      "Generated": {
+        "out.bin": "uint32"
+      }
+    }
+  ]
+}

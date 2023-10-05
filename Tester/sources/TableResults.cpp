@@ -155,7 +155,7 @@ void TableResults::show(const size_t data_size, TestStatistic&& stats) const {
         drawTextLineLeft(std::format(" Diff hash  :   {}", stats.diffs[i - 1].diff_hash), 49);
         drawTextLineLeft(std::format(" Data size  :   {}", data_size), 49);
         drawTextLineLeft(std::format(" Diff count :   {}", stats.diffs[i - 1].mismatch_count), 49);
-        drawTextLineLeft(std::format(" Match :        {:.2f} %", stats.diffs[i - 1].match_percent), 49);
+        drawTextLineLeft(std::format(" Match      :   {:.2f} %", stats.diffs[i - 1].match_percent), 49);
         if (i + 1 == m_columns_names.size()) break;
         drawTextLine("", 49); 
     }

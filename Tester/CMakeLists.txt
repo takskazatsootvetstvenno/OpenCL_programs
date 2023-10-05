@@ -4,8 +4,7 @@ set(TESTER_INCLUDES
 	includes/Application.hpp
 	includes/TableResults.hpp
 	includes/hashpp.h
-	includes/VertexShader.cl
-	includes/FragmentShader.cl
+	includes/json.hpp
 )
 
 set(TESTER_SOURCES
