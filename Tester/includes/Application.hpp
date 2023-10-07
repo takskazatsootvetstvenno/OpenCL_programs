@@ -2,7 +2,6 @@
 #define CL_HPP_TARGET_OPENCL_VERSION 300
 #define CL_HPP_ENABLE_EXCEPTIONS
 #include <CL/opencl.hpp>
-#include <CL/cl2.hpp>
 #include <filesystem>
 #include <string_view>
 #include <vector>
@@ -43,7 +42,9 @@ class Application {
     };
 
  private:
+    bool m_supported_gpu = true;
     void parseTest(std::filesystem::path pathToTests);
+    std::vector<uint8_t> run_host_gpu(const Test& test);
 
     cl::Program compileProgram(std::string_view kernal);
     cl::Platform m_platform;
