@@ -1,0 +1,12 @@
+{
+  "Inputs": [
+  ],
+  "Outputs": [
+    {
+      "Generated": {
+        "out.bin": "uint32"
+      }
+    }
+  ],
+  "Disasm": "AMD"
+}

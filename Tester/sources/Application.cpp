@@ -87,6 +87,16 @@ Application::Application()
     const auto vendor = m_platform.getInfo<CL_PLATFORM_VENDOR>();
     const auto extentions = m_platform.getInfo<CL_PLATFORM_EXTENSIONS_WITH_VERSION>();
 
+    if (vendor.find("NVIDIA") != std::string::npos || vendor.find("nvidia") != std::string::npos) {
+        m_vendor = GPUVenderType::NVIDIA;
+    }
+    if (vendor.find("AMD") != std::string::npos || vendor.find("amd") != std::string::npos ||
+        vendor.find("Advanced micro devices") != std::string::npos) {
+        m_vendor = GPUVenderType::AMD;
+    }
+    if (vendor.find("INTEL") != std::string::npos || vendor.find("intel") != std::string::npos) {
+        m_vendor = GPUVenderType::INTEL;
+    }
     std::cout << "Selected platform: " << name << "\nVersion: " << version << ", Profile: " << profile
               << "\nVendor:  " << vendor << std::endl
               << std::endl;
@@ -152,8 +162,16 @@ void Application::parseTest(std::filesystem::path pathToTest) {
         Test::output_type output = {from_name, {it_bin.key(), Test::getBlobType(it_bin.value()), {}}};
         outputs.emplace_back(std::move(output));
     }
+    GPUVenderType vender = GPUVenderType::NVIDIA;
+    if (data.contains("Disasm")) {
+        if (data["Disasm"] == "AMD") {
+            vender = GPUVenderType::AMD;
+        }
+        if (data["Disasm"] == "NVIDIA") { vender = GPUVenderType::NVIDIA; }
+        if (data["Disasm"] == "INTEL") { vender = GPUVenderType::INTEL; }
+    }
     m_tests.emplace_back(std::move(pathToTest), std::move(inputs), std::move(outputs), std::move(openclProgram),
-                         json_file_path.stem().string());
+                         json_file_path.stem().string(), vender);
 }
 
 void Application::parseTestFolder(std::filesystem::path pathToTests) {
@@ -252,12 +270,18 @@ void Application::runTests() {
 
         for (auto& output : outputs) { addDataColumn(output.first, std::get<2>(output.second)); }
 
+        
         //Run test on host device
-        if (m_supported_gpu) {
+        if (m_vendor == test.getVenderType()) {
             auto host_result_buffer = run_host_gpu(test);
             if (!host_result_buffer.empty()) { addDataColumn("Host GPU", host_result_buffer); }
         }
-        table.processAndShow();
+        try {
+            table.processAndShow();
+        } catch (const std::exception& e) {
+            std::cout << "TableException, Test: " << test.getName() << std::endl << "Error: "
+            << e.what() << std::endl;
+        }
     }
 }
 
@@ -284,9 +308,9 @@ cl::Program Application::compileProgram(std::string_view kernel) {
 }
 
 Application::Test::Test(std::filesystem::path&& to_test_path, std::vector<input_type>&& inputs,
-                        std::vector<output_type>&& output, std::string&& prog, std::string&& name)
+                        std::vector<output_type>&& output, std::string&& prog, std::string&& name, GPUVenderType type)
     : m_inputs(std::move(inputs)), m_outputs(std::move(output)), m_to_test_path(std::move(to_test_path)),
-      m_opencl_program(std::move(prog)), m_name(std::move(name)) {
+      m_opencl_program(std::move(prog)), m_name(std::move(name)), m_vendor(type) {
     fillBlobs();
 }
 
