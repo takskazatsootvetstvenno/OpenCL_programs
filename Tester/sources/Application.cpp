@@ -85,13 +85,19 @@ Application::Application()
     const auto profile = m_platform.getInfo<CL_PLATFORM_PROFILE>();
     const auto version = m_platform.getInfo<CL_PLATFORM_VERSION>();
     const auto vendor = m_platform.getInfo<CL_PLATFORM_VENDOR>();
-    const auto extentions = m_platform.getInfo<CL_PLATFORM_EXTENSIONS_WITH_VERSION>();
+    std::vector<cl_name_version> extentions;
+    try {
+        extentions = m_platform.getInfo<CL_PLATFORM_EXTENSIONS_WITH_VERSION>();
+    }
+    catch (const std::exception& e) {
+        std::cerr << "OpenCL get extentions error: " << e.what() << std::endl;
+    }
 
     if (vendor.find("NVIDIA") != std::string::npos || vendor.find("nvidia") != std::string::npos) {
         m_vendor = GPUVenderType::NVIDIA;
     }
     if (vendor.find("AMD") != std::string::npos || vendor.find("amd") != std::string::npos ||
-        vendor.find("Advanced micro devices") != std::string::npos) {
+        vendor.find("Advanced Micro Devices") != std::string::npos) {
         m_vendor = GPUVenderType::AMD;
     }
     if (vendor.find("INTEL") != std::string::npos || vendor.find("intel") != std::string::npos) {
@@ -101,8 +107,9 @@ Application::Application()
               << "\nVendor:  " << vendor << std::endl
               << std::endl;
 
-    for (const auto& ext : extentions)
+    for (const auto& ext : extentions) {
         if (std::string(ext.name) == "cl_khr_fp16") std::cout << "Supported fp16 extention" << std::endl;
+    }
 }
 
 void Application::parseTest(std::filesystem::path pathToTest) {
