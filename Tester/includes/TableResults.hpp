@@ -10,6 +10,7 @@ namespace Tester {
 struct TestStatistic {
     struct Difference {
         float match_percent = 0;
+        double max_mismatch = 0;
         size_t mismatch_count = 0;
         std::string diff_hash;
     };

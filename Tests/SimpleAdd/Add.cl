@@ -1,4 +1,3 @@
-
 __kernel void Add(
 __constant uint* in,
 __global uint* out) 
