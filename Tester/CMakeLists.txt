@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.18)
 set(TESTER_INCLUDES
 	includes/Application.hpp
 	includes/TableResults.hpp
+	includes/TestVector.hpp
 	includes/hashpp.h
 	includes/json.hpp
 )
@@ -10,6 +11,7 @@ set(TESTER_INCLUDES
 set(TESTER_SOURCES
 	sources/Application.cpp
 	sources/TableResults.cpp
+	sources/TestVector.cpp
 	sources/main.cpp
 )
 add_executable(${PROJECT_NAME}
